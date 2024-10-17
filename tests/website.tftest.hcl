@@ -29,3 +29,45 @@ run "create_bucket" {
     error_message = "Invalid eTag for error.html"
   }
 }
+# Verify the website is running
+run "website_is_running" {
+  command = plan
+
+  module {
+    source = "./tests/final"
+  }
+
+  variables {
+    endpoint = run.create_bucket.website_endpoint
+  }
+
+  assert {
+    condition     = data.http.index.status_code == 200
+    error_message = "Website responded with HTTP status ${data.http.index.status_code}"
+  }
+}
+
+# The override_resource blocks instruct Terraform to mock the resources at the address defined 
+# in the target attribute. In this case, Terraform will mock the EC2 instance and RDS database 
+# instead of provisioning them in AWS.
+
+override_resource {
+  target = aws_instance.backend_api
+}
+
+override_resource {
+  target = aws_db_instance.backend_api
+}
+
+run "check_backend_api" {
+  assert {
+    condition     = aws_instance.backend_api.tags.Name == "backend"
+    error_message = "Invalid name tag"
+  }
+
+  assert {
+    condition     = aws_db_instance.backend_api.username == "foo"
+    error_message = "Invalid database username"
+  }
+}
+
